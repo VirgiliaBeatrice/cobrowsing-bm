@@ -1,0 +1,3 @@
+[submodule "lib/robotjs"]
+	path = lib/robotjs
+	url = https://github.com/jitsi/robotjs.git
