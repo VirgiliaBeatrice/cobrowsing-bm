@@ -13,10 +13,13 @@
   },
   "scripts": {
     "build": "npx tsc src/main/*.ts --outfile index.js",
-    "build:main": "npx tsc --project ./tsconfig.json"
+    "build:main": "npx tsc --project ./tsconfig.main.dev.json",
+    "build:server": "npx tsc --project ./tsconfig.server.dev.json"
   },
   "dependencies": {
     "@jitsi/robotjs": "link:./lib/robotjs",
-    "socket.io": "^4.5.4"
+    "@socket.io/admin-ui": "^0.5.1",
+    "socket.io": "^4.5.4",
+    "uuidv4": "^6.2.13"
   }
 }
