@@ -1,3 +1,6 @@
 [submodule "lib/robotjs"]
 	path = lib/robotjs
 	url = https://github.com/jitsi/robotjs.git
+[submodule "lib/binaural-meet"]
+	path = lib/binaural-meet
+	url = https://github.com/BinauralMeet/binaural-meet.git
