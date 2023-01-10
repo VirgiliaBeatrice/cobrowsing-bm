@@ -7,6 +7,10 @@ import { Stack } from '@mui/material';
 import Fade from '@mui/material/Fade'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
+import { when } from 'mobx'
+import { conference } from '../../lib/binaural-meet/src/models/conference'
+// const capabilities = singaling
+
 
 export const App: React.FC = ()  => {
   const [inState, setInState] = React.useState(false)
@@ -32,6 +36,9 @@ export const App: React.FC = ()  => {
           </Fab>
         </Stack>
       </Fade>
+      <div>
+        <video />
+      </div>
     </div>
   )
 }
@@ -56,5 +63,13 @@ export const App: React.FC = ()  => {
 //     </div>
 //   );
 // }
+
+const startConference = () => {
+  window.addEventListener('load', () => {
+    const room = "test"
+
+    conference.enter(room, false)
+  })
+}
 
 export default App;
