@@ -4,11 +4,16 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
+    "-": "^0.0.1",
     "@socket.io/admin-ui": "^0.5.1",
+    "nodemon": "^2.0.20",
+    "pino": "^8.8.0",
+    "pino-pretty": "^9.1.1",
     "socket-io": "^1.0.0"
   },
   "scripts": {
-    "start": "ts-node ./src/index.ts",
+    "watch": "npx nodemon",
+    "start": "npx ts-node ./src/index.ts",
     "build": "tsc --project ./tsconfig.dev.json",
     "clear": "rimraf ./dist"
   },

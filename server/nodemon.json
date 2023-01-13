@@ -1,0 +1,15 @@
+{
+    "restartable": "rs",
+    "execMap": {
+        "ts": "ts-node"
+    },
+    "verbose": true,
+    "watch": [
+        "./src/"
+    ],
+    "env": {
+      "NODE_ENV": "development"
+    },
+    "ext": "ts json",
+    "exec": "npx ts-node ./src/index.ts"
+  }
