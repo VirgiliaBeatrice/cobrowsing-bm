@@ -23,7 +23,7 @@ interface ClientToServerEvents {
 
     "read:sessions": RecvEvent<any, any>,
     "create:session": RecvEvent<any, any>,
-    "create:peer": RecvEvent<any, any>
+    "create:peer": RecvEvent<any, any>,
 }
 
 interface ServerToClientEvents {
@@ -72,6 +72,7 @@ const CHROME_ARGS = ["--new-window", "--start-maximized",  "--incognito"]
 
 class SessionManager {
     private _sessions: Map<string, Session> = new Map<string, Session>()
+    _participants: Map<string, Socket> = new Map<string, Socket>()
 
     constructor() { }
 
@@ -140,6 +141,14 @@ class SessionManager {
         var session = this._sessions.get(sessionId) 
 
         return session? [...session.peers.values()] : []
+    }
+
+    addParticipant(socket: Socket) {
+        this._participants.set(socket.id, socket)
+    }
+
+    removeParticipant(id: string) {
+        this._participants.delete(id)
     }
 
     get sessions(): Array<SessionInfo> {
@@ -266,6 +275,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
 
             cb(ack)
 
+            logger.info(`Peer[${peer.id}] joined. Session[${session.id}]`)
             // publishTo(session.id, )
         }
     })
@@ -290,9 +300,27 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
         }
     })
 
-    // socket.on('create:peer', (peer: Peer) => {
-    //     if ()
-    // })
+    socket.on('create:peer', (msg, cb) => {
+        var peer = msg.payload as Peer
+
+        manager.addParticipant(socket)
+
+        var ack: Ack<any> = {
+            type: msg.type,
+            status: 'ok',
+            payload: socket.id
+        }
+
+        cb(ack)
+
+        logger.info(`Add a participant[${socket.id}]`)
+    })
+
+    socket.on('disconnect', (reason) => {
+        manager.removeParticipant(socket.id)
+
+        logger.info(`Delete participant[${socket.id}], since the connection has been lost. REASON: ${reason}`)
+    })
 
     // onJoin
     // socket.on('join', (sessionId: string, peer: Peer) => {
@@ -354,6 +382,8 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
         }
 
         cb(ack)
+
+        logger.info(`Request current session information from ${socket.id}`)
     })
 })
 

@@ -3,7 +3,10 @@ import { makeAutoObservable, observable, action } from "mobx";
 import { createContext, useContext } from "react"
 import { Session } from "inspector";
 import { create } from "domain";
+import { stat } from "fs";
 // import { uuid } from "uuidv4";
+
+const DOMAIN = "http://localhost:3000"
 
 interface Cursor {
     x: number,
@@ -34,7 +37,7 @@ interface Ack<T> {
     payload?: T | any
 }
 
-interface SessionInfo {
+export interface SessionInfo {
     id: string,
     name: string,
 }
@@ -48,19 +51,85 @@ export interface ClientMessage<T> {
     type: 'create' | 'read' | 'update' | 'delete' | string,
     payload?: T | any
 }
+
+export const sendTo = (socket: Socket, msg: ClientMessage<any>, cb: AckCallback = () => {}) => {
+    socket.emit(msg.type, msg, cb)
+}
+
 export class Store {
     sessions: Array<SessionInfo> = []
     local: Peer = new Peer()
-    
+    connected: boolean = false
+    failed: boolean = false
+    _socket : Socket
+
     constructor() {
         makeAutoObservable(this, {
             sessions: observable,
             fetch: action
         })
+
+        this._socket = io(DOMAIN, {
+            autoConnect: false,
+            reconnection: false
+        })
+
+        this._socket.on('connect', () => {
+            this.setConnectStatus(true)
+            this.createLocal()
+            this.fetch()
+        })
+
+        this._socket.on('connect_error', (error) => {
+            this.setFailStatus(true)
+        })
+
+    }
+
+    createLocal() {
+        sendTo(this._socket,
+            {
+                type: 'create:peer',
+            },
+            (ack: Ack<string>) => {
+                var id = ack.payload
+    
+                this.setLocal(id)
+            }
+        )
+    }
+
+    createSession() {
+        sendTo(this._socket,
+            {
+                type: 'create:session',
+            },
+            (ack: Ack<any>) => {
+                if (ack.status === 'ok') {
+                    console.info(ack.payload)
+                }
+            }
+        )
+    }
+
+    setFailStatus(status: boolean) {
+        this.failed = status
+    }
+
+    setConnectStatus(status: boolean) {
+        this.connected = status
+    }
+
+    connect() {
+        this._socket.connect()
+    }
+
+    disconnect() {
+        this._socket.disconnect()
     }
 
     fetch() {
-        sendTo(
+        sendTo(this._socket,
             {
                 type: 'read:sessions',
             },
@@ -83,7 +152,8 @@ export class Store {
     }
 
     join(id: string) {
-        sendTo(
+        console.info(this.local.id)
+        sendTo(this._socket,
             { 
                 type: 'update:peer.session_id',
                 payload: {
@@ -100,7 +170,7 @@ export class Store {
     }
 
     updateCursor(cursor: Cursor) {
-        sendTo(
+        sendTo(this._socket,
             {
                 type: 'update:peer.cursor',
                 payload: {
@@ -118,64 +188,65 @@ export class Store {
     }
 }
 
-export const store = new Store()
-
-const DOMAIN = "http://localhost:3000"
-let socket: Socket
+// export const store = new Store()
 
 
+// export const connect = () => {
+//     socket = io(DOMAIN, {
+//         withCredentials: true,
+//     })
 
+//     socket.on('connect', () => {
+//         console.log("socket connect!")
+//     })
 
-export const connect = () => {
-    socket = io(DOMAIN, {
-        withCredentials: true,
-    })
-}
+//     socket.on('connect_error', (error) => {
 
-export const init = () => {
-    registerHandlers()
+//     })
+// }
 
-    createLocalPeer()
-}
+// export const init = () => {
+//     // registerHandlers()
 
-export const createLocalPeer = () => {
-    sendTo(
-        {
-            type: 'create:peer',
-        },
-        (ack: Ack<string>) => {
-            var id = ack.payload
+//     createLocalPeer()
+// }
 
-            store.setLocal(id)
-        }
-    )
-}
+// export const createLocalPeer = () => {
+//     sendTo(socket,
+//         {
+//             type: 'create:peer',
+//         },
+//         (ack: Ack<string>) => {
+//             var id = ack.payload
+
+//             store.setLocal(id)
+//         }
+//     )
+// }
 
 type AckCallback = (...args: any) => void
 
-export const sendTo = (msg: ClientMessage<any>, cb: AckCallback = () => {}) => {
-    socket.emit(msg.type, msg, cb)
-}
 
-export const fetchSession = (sessionId: string) => {
-    sendTo({
-        type: 'read:session',
-        payload: sessionId
-    })
-}
 
-export const createSession = () => {
-    sendTo(
-        {
-            type: 'create:session',
-        },
-        (ack: Ack<any>) => {
-            if (ack.status === 'ok') {
-                console.info(ack.payload)
-            }
-        }
-    )
-}
+// export const fetchSession = (sessionId: string) => {
+//     sendTo(socket, {
+//         type: 'read:session',
+//         payload: sessionId
+//     })
+// }
+
+// export const createSession = () => {
+//     sendTo(socket,
+//         {
+//             type: 'create:session',
+//         },
+//         (ack: Ack<any>) => {
+//             if (ack.status === 'ok') {
+//                 console.info(ack.payload)
+//             }
+//         }
+//     )
+// }
 
 // export const fetchSessions = (): any => {
 //     sendTo(
@@ -190,38 +261,38 @@ export const createSession = () => {
 //     )
 // }
 
-export const updateLocal = (local: PeerDTO) => {
-    sendTo({
-        type: 'update:peer',
-        payload: local
-    })
-}
+// export const updateLocal = (local: PeerDTO) => {
+//     sendTo(socket, {
+//         type: 'update:peer',
+//         payload: local
+//     })
+// }
 
-export const joinSession = (local: PeerDTO) => {
-    sendTo({
-        type: 'update:peer',
-        payload: local
-    })
-}
+// export const joinSession = (local: PeerDTO) => {
+//     sendTo(socket, {
+//         type: 'update:peer',
+//         payload: local
+//     })
+// }
 
-export const leaveSession = (local: PeerDTO) => {
-    sendTo({
-        type: 'update:peer',
-        payload: local
-    })
-}
+// export const leaveSession = (local: PeerDTO) => {
+//     sendTo(socket, {
+//         type: 'update:peer',
+//         payload: local
+//     })
+// }
 
-const registerHandlers = () => {
-    socket.on('connected', (msg: ServerMessage<any>) => {
-        console.log(msg)
-    })
-    socket.on('connect', () => {
-        console.log("socket connect!")
-    })
+// const registerHandlers = () => {
+//     socket.on('connected', (msg: ServerMessage<any>) => {
+//         console.log(msg)
+//     })
+//     socket.on('connect', () => {
+//         console.log("socket connect!")
+//     })
     
-    socket.on('disconnect', (reason) => {
-        console.log(reason)
-    })
+//     socket.on('disconnect', (reason) => {
+//         console.log(reason)
+//     })
 
 
     // Create
@@ -239,7 +310,7 @@ const registerHandlers = () => {
     // // Delete
     // socket.on('delete:session', onDeleteSession)
     // socket.on('delete:peer', onDeletePeer)
-}
+// }
 
 // registerHandlers()
 

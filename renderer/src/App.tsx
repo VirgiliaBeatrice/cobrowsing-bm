@@ -9,24 +9,25 @@ import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import { when } from 'mobx'
 import { conference } from '../../lib/binaural-meet/src/models/conference'
+import { participantsStore } from '../../lib/binaural-meet/src/stores/participants'
 // const capabilities = singaling
 
 
 export const App: React.FC = ()  => {
-  const [inState, setInState] = React.useState(false)
+  const [showFab, setShowFab] = React.useState(false)
 
   const handleEnter = () => {
-    setInState(true)
+    setShowFab(true)
   }
 
   const handleLeave = () => {
-    setInState(false)
+    setShowFab(false)
   }
 
   return (
     <div className='App' onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
       
-      <Fade in={inState}>
+      <Fade in={showFab}>
         <Stack direction="row" spacing={2} justifyContent="center" marginTop={2}>
           <Fab color="primary" aria-label='add'>
             <AddIcon />
@@ -67,7 +68,10 @@ export const App: React.FC = ()  => {
 const startConference = () => {
   window.addEventListener('load', () => {
     const room = "test"
+    const sessionName = "CoB"
 
+    // participantsStore.local.information.name = sessionName
+    // participantsStore.local.tracks
     conference.enter(room, false)
   })
 }

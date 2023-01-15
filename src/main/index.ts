@@ -22,6 +22,8 @@ const createWindow = async() => {
 
     var sources = await desktopCapturer.getSources({types: ['screen']})
 
+    console.info(sources)
+
     for (var source of sources) {
         if (source.display_id === "0") {
             win.webContents.send('SET_SOURCES', source.id)
