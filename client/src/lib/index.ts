@@ -62,6 +62,7 @@ export class Store {
     connected: boolean = false
     failed: boolean = false
     _socket : Socket
+    currentSession: string = ""
 
     constructor() {
         makeAutoObservable(this, {
