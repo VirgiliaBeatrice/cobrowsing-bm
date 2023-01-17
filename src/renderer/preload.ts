@@ -1,9 +1,9 @@
 import { ipcRenderer } from "electron";
 import * as mediasoup from "mediasoup-client"
-import pino from 'pino'
+// import pino from 'pino'
 import { io } from 'socket.io-client'
 
-const logger = pino()
+const logger = console
 const handlerName = mediasoup.detectDevice()
 
 if (handlerName) {

@@ -13,6 +13,8 @@ const createWindow = async() => {
         fullscreen: true,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
+            
+            contextIsolation: true
         },
     })
 
@@ -23,6 +25,8 @@ const createWindow = async() => {
     })
     
     win.loadFile('index.html')
+
+    win.webContents.openDevTools()
 
     var sources = await desktopCapturer.getSources({types: ['screen']})
 

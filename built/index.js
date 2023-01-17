@@ -22,26 +22,51 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const robot = __importStar(require("@jitsi/robotjs"));
+const message_1 = require("./message");
+const path_1 = __importDefault(require("path"));
 console.log(process.versions);
 console.log(robot.getMousePos());
-const createWindow = () => {
+const createWindow = () => __awaiter(void 0, void 0, void 0, function* () {
     const win = new electron_1.BrowserWindow({
-        width: 800,
-        height: 600,
         transparent: true,
         frame: false,
-        fullscreen: true
+        fullscreen: true,
+        webPreferences: {
+            preload: path_1.default.join(__dirname, 'preload.js'),
+            contextIsolation: true
+        },
     });
     win.setAlwaysOnTop(true, "screen-saver");
     win.setIgnoreMouseEvents(true, {
         forward: true
     });
     win.loadFile('index.html');
-};
-electron_1.app.whenReady().then(() => {
+    win.webContents.openDevTools();
+    var sources = yield electron_1.desktopCapturer.getSources({ types: ['screen'] });
+    console.info(sources);
+    for (var source of sources) {
+        if (source.display_id === "0") {
+            win.webContents.send('SET_SOURCES', source.id);
+        }
+    }
+});
+electron_1.app.whenReady().then(() => __awaiter(void 0, void 0, void 0, function* () {
+    (0, message_1.init)();
     createWindow();
     // robot.setMouseDelay(2)
     // var twoPI = Math.PI * 2.0;
@@ -53,4 +78,4 @@ electron_1.app.whenReady().then(() => {
     //     var y = height * Math.sin((twoPI * x) / width) + height;
     //     robot.moveMouse(x, y);
     // }
-});
+}));
