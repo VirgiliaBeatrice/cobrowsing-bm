@@ -1,6 +1,7 @@
 import { app, BrowserWindow, desktopCapturer, ipcMain } from 'electron'
 import * as robot from '@jitsi/robotjs'
 import {init} from './message'
+import path from 'path'
 
 console.log(process.versions);
 console.log(robot.getMousePos())
@@ -9,7 +10,10 @@ const createWindow = async() => {
     const win = new BrowserWindow({
         transparent: true,
         frame: false,
-        fullscreen: true
+        fullscreen: true,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+        },
     })
 
     

@@ -19,7 +19,11 @@
   "dependencies": {
     "@jitsi/robotjs": "link:./lib/robotjs",
     "@socket.io/admin-ui": "^0.5.1",
+    "mediasoup-client": "3",
+    "pino": "^8.8.0",
+    "pino-pretty": "^9.1.1",
     "socket.io": "^4.5.4",
+    "socket.io-client": "^4.5.4",
     "uuidv4": "^6.2.13"
   }
 }
