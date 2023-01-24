@@ -99,7 +99,7 @@ async function createProducer(parameters: {
   rtpParameters: mediasoup.types.RtpParameters;
   appData: Record<string, unknown>;
 }) {
-  return new Promise<void>(
+  return new Promise<string>(
     resolve => {
       sendMsRequest(
         {
@@ -109,7 +109,7 @@ async function createProducer(parameters: {
         (response) => {
           console.info(response)
 
-          resolve()
+          resolve(response.payload as string)
         }
       )
     }
@@ -127,16 +127,38 @@ async function start() {
 
   transport = device.createSendTransport(options)
 
-  transport.on('connect', async ({dtlsParameters}) => {
-    // call transport.connect() on server
-    await connectTransport(dtlsParameters)
+  transport.on('connect', async ({dtlsParameters}, cb, eb) => {
+    try {
+      console.info("Transport has been connected.")
+      // call transport.connect() on server
+      await connectTransport(dtlsParameters)
+
+      cb()
+    }
+    catch (error) {
+      eb(error as Error)
+    }
   })
 
-  transport.on('produce', async (parameters) => {
-    // create producer on server
-    await createProducer(parameters)
+  transport.on('produce', async (parameters, cb, eb) => {
+    try {
+      console.info("Start to produce.")
+  
+      // create producer on server
+      var response = await createProducer(parameters)
+
+      cb({ id: response })
+    }
+    catch (error) {
+      eb(error as Error)
+    }
   })
 
+  transport.on('connectionstatechange', async (state) => {
+    console.info(state)
+  })
+
+  console.info("Can device produce? " + device.canProduce("video"))
   if (device.canProduce("video")) {
     var stream = await navigator.mediaDevices.getUserMedia({video: true, audio: false})
 
@@ -144,4 +166,3 @@ async function start() {
   }
 
 }
-
