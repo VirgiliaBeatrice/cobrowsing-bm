@@ -1,5 +1,9 @@
 import * as mediasoup from "mediasoup-client"
+import { Consumer } from "mediasoup-client/lib/Consumer"
+import { Producer } from "mediasoup-client/lib/Producer"
 import { io, Socket } from 'socket.io-client'
+
+window.localStorage.setItem('debug', 'mediasoup-client:WARN* mediasoup-client:ERROR*');
 
 const api: any = (window as any).api
 
@@ -14,6 +18,7 @@ else {
 
 let socket: Socket
 let device: mediasoup.types.Device
+let monitoringProducer: mediasoup.types.Producer
 
 export function create() {
   socket = io("http://jp.virbea.com:8080") 
@@ -126,6 +131,10 @@ async function start() {
   var options = await getTransportOptions()
 
   transport = device.createSendTransport(options)
+  
+  transport.on('connectionstatechange', (state) => {
+    console.info("Connection State: " + state)
+  })
 
   transport.on('connect', async ({dtlsParameters}, cb, eb) => {
     try {
@@ -154,15 +163,70 @@ async function start() {
     }
   })
 
-  transport.on('connectionstatechange', async (state) => {
-    console.info(state)
+
+
+  transport.observer.on('close', () => {
+    console.info('transport closed.')
+  })
+
+  transport.observer.on('newproducer', (producer: Producer) => {
+    console.info('we have a new producer ' + producer.id)
+
+    producer.observer.on("close", () => {
+        console.info('close')
+    })
+
+    producer.observer.on("pause", () => {
+      console.info('pause')
+      
+    })
+
+    producer.observer.on("resume", () => {
+      console.info('resume')
+      
+    })
+
+    producer.observer.on("traceended", () => {
+      console.info('traceended')
+      
+    })
+  })
+
+  transport.observer.on('newconsumer', (consumer: Consumer) => {
+    console.info('new consumer created [id:%s]', consumer.id)
   })
 
   console.info("Can device produce? " + device.canProduce("video"))
   if (device.canProduce("video")) {
-    var stream = await navigator.mediaDevices.getUserMedia({video: true, audio: false})
+    var cameras = await navigator.mediaDevices.enumerateDevices()
 
-    await transport.produce({track: stream.getVideoTracks()[0]})
+    var camera = cameras[1]
+
+    var constraints = {
+      audio: false,
+      video: {
+        deviceId: camera.deviceId
+      }
+    }
+    console.info(cameras)
+
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia(constraints)
+
+      var producer = await transport.produce({track: stream.getVideoTracks()[0]})
+
+      monitoringProducer = producer
+
+      console.info(await producer.getStats())
+
+      producer.resume()
+    }
+    catch (error) {
+      if (error instanceof Error) {
+        console.error("Failed!")
+      } 
+    }
+
   }
 
 }
