@@ -1,9 +1,10 @@
 import * as mediasoup from "mediasoup-client"
 import { Consumer } from "mediasoup-client/lib/Consumer"
 import { Producer } from "mediasoup-client/lib/Producer"
+import { resolve } from "path";
 import { io, Socket } from 'socket.io-client'
 
-window.localStorage.setItem('debug', 'mediasoup-client:WARN* mediasoup-client:ERROR*');
+window.localStorage.setItem('debug', 'mediasoup-client:WARN* mediasoup-client:ERROR* mediasoup-client:DEBUG*');
 
 const api: any = (window as any).api
 
@@ -38,6 +39,24 @@ export function create() {
 
 function sendMsRequest(request: any, cb: (response: any) => void) {
   socket.emit('ms-request', request, cb)
+}
+
+async function setRemoteRtpCapabilites(RtpCapabilities: mediasoup.types.RtpCapabilities) {
+  return new Promise<boolean>(
+    resolve => {
+      sendMsRequest(
+        {
+          method: 'setClientRtpCapabilities',
+          payload: RtpCapabilities
+        },
+        (response) => {
+          console.info(response)
+
+          resolve(true)
+        }
+      )
+    }
+  )
 }
 
 async function getRouterRtpCapabilites() {
