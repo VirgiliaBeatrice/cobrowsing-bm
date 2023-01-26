@@ -8,6 +8,22 @@ window.localStorage.setItem('debug', 'mediasoup-client:WARN* mediasoup-client:ER
 
 const api: any = (window as any).api
 
+interface Store {
+  device: mediasoup.types.Device | undefined,
+  consumer: Consumer | undefined,
+  consumerTransport: mediasoup.types.Transport | undefined,
+  producer: Producer | undefined,
+  producerTransport: mediasoup.types.Transport | undefined
+}
+
+export const store: Store = {
+  device: undefined,
+  consumer: undefined,
+  consumerTransport: undefined,
+  producer: undefined,
+  producerTransport: undefined
+}
+
 const handlerName = mediasoup.detectDevice()
 
 if (handlerName) {
@@ -19,9 +35,8 @@ else {
 
 let socket: Socket
 let device: mediasoup.types.Device
-let monitoringProducer: mediasoup.types.Producer
 
-export function create() {
+export async function create() {
   socket = io("http://jp.virbea.com:8080") 
   device = new mediasoup.Device()
 
@@ -33,7 +48,15 @@ export function create() {
       console.log(`connect_error due to ${err.message}`);
   });
 
-  start()
+  await startProduce()
+  var ms = await startConsume()
+
+  const video = document.getElementById('video') as HTMLVideoElement
+
+  console.log(video)
+  console.log(ms.getVideoTracks())
+  video.srcObject = ms
+  video.play()
 }
 
 
@@ -41,23 +64,6 @@ function sendMsRequest(request: any, cb: (response: any) => void) {
   socket.emit('ms-request', request, cb)
 }
 
-async function setRemoteRtpCapabilites(RtpCapabilities: mediasoup.types.RtpCapabilities) {
-  return new Promise<boolean>(
-    resolve => {
-      sendMsRequest(
-        {
-          method: 'setClientRtpCapabilities',
-          payload: RtpCapabilities
-        },
-        (response) => {
-          console.info(response)
-
-          resolve(true)
-        }
-      )
-    }
-  )
-}
 
 async function getRouterRtpCapabilites() {
   return new Promise<mediasoup.types.RtpCapabilities>(
@@ -75,12 +81,13 @@ async function getRouterRtpCapabilites() {
  
 }
 
-async function getTransportOptions() {
+async function getTransportOptions(id: string) {
   return new Promise<mediasoup.types.TransportOptions>(
     resolve => {
       sendMsRequest(
         {
           method: "getTransportOptions",
+          payload: id
         },
         (response) => {
           console.info(response)
@@ -92,21 +99,42 @@ async function getTransportOptions() {
   )
 }
 
-interface TransportInfo {
+interface ConnectTransportParamters {
   id: string,
-  iceParameters: mediasoup.types.IceParameters,
-  iceCandidates: mediasoup.types.IceCandidate,
   dtlsParameters: mediasoup.types.DtlsParameters,
-  sctpParameters: mediasoup.types.SctpParameters
 }
 
-async function connectTransport(dtlsParameters: mediasoup.types.DtlsParameters) {
+
+interface Response<T> {
+  method: string,
+  payload: T
+}
+
+async function createTransport(options: any) {
+  return new Promise<mediasoup.types.TransportOptions>(
+    resolve => {
+      sendMsRequest(
+        {
+          method: 'createTransport',
+          payload: options
+        },
+        (response: Response<mediasoup.types.TransportOptions>) => {
+          console.info(response)
+
+          resolve(response.payload)
+        }
+      )
+    }
+  )
+}
+
+async function connectTransport(parameters: ConnectTransportParamters) {
   return new Promise<void>(
     resolve => {
       sendMsRequest(
         {
-          method: 'connectProducer',
-          payload: dtlsParameters
+          method: 'connectTransport',
+          payload: parameters
         },
         (response) => {
           console.info(response)
@@ -123,6 +151,7 @@ async function createProducer(parameters: {
   rtpParameters: mediasoup.types.RtpParameters;
   appData: Record<string, unknown>;
 }) {
+  console.info(parameters)
   return new Promise<string>(
     resolve => {
       sendMsRequest(
@@ -140,16 +169,59 @@ async function createProducer(parameters: {
   )
 }
 
-let transport: mediasoup.types.Transport
+interface ResponseCreateConsumer {
+  method: 'createConsumer',
+  payload: {
+    id: string,
+    iceParameters  : any,
+    iceCandidates  : any,
+    dtlsParameters : any,
+    sctpParameters : any
+  }
+}
 
-async function start() {
+interface RequestConsumerOptions {
+  producerId: string,
+  rtpCapabilities: mediasoup.types.RtpCapabilities
+}
+
+interface ResponseConsumer {
+
+}
+
+async function createConsumer(options: RequestConsumerOptions) {
+  return new Promise<mediasoup.types.ConsumerOptions>(
+    resolve => {
+      sendMsRequest(
+        {
+          method: 'createConsumer',
+          payload: options
+        },
+        (response) => {
+          console.info(response)
+
+          resolve(response.payload)
+        }
+      )
+    }
+  )
+}
+
+
+async function startProduce() {
+  let transport: mediasoup.types.Transport
+
+  // 1. get router rtpCapabilities from server
   var rtp = await getRouterRtpCapabilites()
 
+  // 2. Initialize device with routerRtpCapabilities
   await device.load({ routerRtpCapabilities: rtp })
 
-  var options = await getTransportOptions()
+  // 3. create remote transport for producing media
+  var transportOptions = await createTransport({ type: 'produce' })
 
-  transport = device.createSendTransport(options)
+  // 4. create local transport according to the information of corresponding remote transport
+  store.producerTransport = transport = device.createSendTransport(transportOptions)
   
   transport.on('connectionstatechange', (state) => {
     console.info("Connection State: " + state)
@@ -158,8 +230,10 @@ async function start() {
   transport.on('connect', async ({dtlsParameters}, cb, eb) => {
     try {
       console.info("Transport has been connected.")
-      // call transport.connect() on server
-      await connectTransport(dtlsParameters)
+
+      // 5.1. when 'connect' emitted, call transport.connect() on server
+      var id = store.producerTransport!.id
+      await connectTransport({ id, dtlsParameters})
 
       cb()
     }
@@ -172,7 +246,7 @@ async function start() {
     try {
       console.info("Start to produce.")
   
-      // create producer on server
+      // 5.2. when 'produce' emitted, create producer on server
       var response = await createProducer(parameters)
 
       cb({ id: response })
@@ -181,8 +255,6 @@ async function start() {
       eb(error as Error)
     }
   })
-
-
 
   transport.observer.on('close', () => {
     console.info('transport closed.')
@@ -232,20 +304,55 @@ async function start() {
     try {
       var stream = await navigator.mediaDevices.getUserMedia(constraints)
 
-      var producer = await transport.produce({track: stream.getVideoTracks()[0]})
+      let producer
 
-      monitoringProducer = producer
+      // 5. start to produce on local
+      store.producer = producer = await transport.produce({track: stream.getVideoTracks()[0]})
 
-      console.info(await producer.getStats())
-
-      producer.resume()
     }
     catch (error) {
       if (error instanceof Error) {
-        console.error("Failed!")
+        console.error("Failed!" + error)
       } 
     }
-
   }
+}
 
+async function startConsume() {
+  var rtpCapabilities = device.rtpCapabilities
+  var producerId = store.producer!.id
+
+  // 1. create transport on server for media consuming
+  var transportOptions = await createTransport({ type: 'consume' })
+
+  // 2. create consumer on server
+  var consumerOptions = await createConsumer({rtpCapabilities, producerId})
+
+  // 3. create transport on local according to the server information
+  var transport = device.createRecvTransport(transportOptions)
+
+  store.consumerTransport = transport
+
+  transport.on("connect", async ({ dtlsParameters }, cb, eb) => {
+    try {
+      var id = store.consumerTransport!.id
+
+      // 4.1. when 'connect' emitted, connect transport with server
+      await connectTransport({id, dtlsParameters})
+
+      cb()
+    } catch (error) {
+      eb(error as Error)
+    }
+  })
+
+  // 4. create local consumer according to the server consumer information
+  console.info("consumerOptions" + JSON.stringify(consumerOptions))
+  var consumer = await transport.consume(consumerOptions)
+
+  store.consumer = consumer
+
+  const {track} = consumer
+
+  return new MediaStream([track])
 }

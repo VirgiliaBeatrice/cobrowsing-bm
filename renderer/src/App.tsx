@@ -35,7 +35,7 @@ export const App: React.FC = ()  => {
         </Stack>
       </Fade>
       <div>
-        <video />
+        <video id='video' />
       </div>
     </div>
   )
