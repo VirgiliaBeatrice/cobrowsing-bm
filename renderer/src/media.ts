@@ -49,14 +49,14 @@ export async function create() {
   });
 
   await startProduce()
-  var ms = await startConsume()
+  // var ms = await startConsume()
 
-  const video = document.getElementById('video') as HTMLVideoElement
+  // const video = document.getElementById('video') as HTMLVideoElement
 
-  console.log(video)
-  console.log(ms.getVideoTracks())
-  video.srcObject = ms
-  video.play()
+  // console.log(video)
+  // console.log(ms.getVideoTracks())
+  // video.srcObject = ms
+  // video.play()
 }
 
 
@@ -220,8 +220,10 @@ async function startProduce() {
   // 3. create remote transport for producing media
   var transportOptions = await createTransport({ type: 'produce' })
 
+  console.info(transportOptions)
+
   // 4. create local transport according to the information of corresponding remote transport
-  store.producerTransport = transport = device.createSendTransport(transportOptions)
+  store.producerTransport = transport = device.createSendTransport({...transportOptions, iceServers: [ { credential: '', username: '', urls: '' } ]})
   
   transport.on('connectionstatechange', (state) => {
     console.info("Connection State: " + state)
