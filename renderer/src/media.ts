@@ -1,9 +1,10 @@
+import fs from "fs";
 import * as mediasoup from "mediasoup-client"
 import { Consumer } from "mediasoup-client/lib/Consumer"
 import { Producer } from "mediasoup-client/lib/Producer"
-import { resolve } from "path";
+import path, { resolve } from "path";
 import { io, Socket } from 'socket.io-client'
-
+import { config } from './config'
 window.localStorage.setItem('debug', 'mediasoup-client:WARN* mediasoup-client:ERROR* mediasoup-client:DEBUG*');
 
 const api: any = (window as any).api
@@ -146,18 +147,19 @@ async function connectTransport(parameters: ConnectTransportParamters) {
   )
 }
 
-async function createProducer(parameters: {
+async function createProducer(transportId: string, options: {
   kind: mediasoup.types.MediaKind;
   rtpParameters: mediasoup.types.RtpParameters;
   appData: Record<string, unknown>;
 }) {
-  console.info(parameters)
+  // console.info(options)
+
   return new Promise<string>(
     resolve => {
       sendMsRequest(
         {
           method: 'createProducer',
-          payload: parameters
+          payload: { transportId, options }
         },
         (response) => {
           console.info(response)
@@ -169,38 +171,23 @@ async function createProducer(parameters: {
   )
 }
 
-interface ResponseCreateConsumer {
-  method: 'createConsumer',
-  payload: {
-    id: string,
-    iceParameters  : any,
-    iceCandidates  : any,
-    dtlsParameters : any,
-    sctpParameters : any
-  }
-}
-
 interface RequestConsumerOptions {
   producerId: string,
   rtpCapabilities: mediasoup.types.RtpCapabilities
 }
 
-interface ResponseConsumer {
-
-}
-
-async function createConsumer(options: RequestConsumerOptions) {
+async function createConsumer(transportId: string, options: RequestConsumerOptions) {
   return new Promise<mediasoup.types.ConsumerOptions>(
     resolve => {
       sendMsRequest(
         {
           method: 'createConsumer',
-          payload: options
+          payload: { transportId, options }
         },
         (response) => {
           console.info(response)
 
-          resolve(response.payload)
+          resolve(response.payload as mediasoup.types.ConsumerOptions)
         }
       )
     }
@@ -220,10 +207,11 @@ async function startProduce() {
   // 3. create remote transport for producing media
   var transportOptions = await createTransport({ type: 'produce' })
 
-  console.info(transportOptions)
+  // console.info(transportOptions)
 
   // 4. create local transport according to the information of corresponding remote transport
-  store.producerTransport = transport = device.createSendTransport({...transportOptions, iceServers: [ { credential: '', username: '', urls: '' } ]})
+  console.info({...transportOptions, ...config})
+  store.producerTransport = transport = device.createSendTransport({...transportOptions, ...config})
   
   transport.on('connectionstatechange', (state) => {
     console.info("Connection State: " + state)
@@ -246,10 +234,10 @@ async function startProduce() {
 
   transport.on('produce', async (parameters, cb, eb) => {
     try {
-      console.info("Start to produce.")
+      console.info(`Start to produce. Id[${transport.id}]`)
   
       // 5.2. when 'produce' emitted, create producer on server
-      var response = await createProducer(parameters)
+      var response = await createProducer(transport.id, parameters)
 
       cb({ id: response })
     }
@@ -328,7 +316,7 @@ async function startConsume() {
   var transportOptions = await createTransport({ type: 'consume' })
 
   // 2. create consumer on server
-  var consumerOptions = await createConsumer({rtpCapabilities, producerId})
+  var consumerOptions = await createConsumer(transportOptions.id, {rtpCapabilities, producerId})
 
   // 3. create transport on local according to the server information
   var transport = device.createRecvTransport(transportOptions)
