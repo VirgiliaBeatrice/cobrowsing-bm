@@ -25,6 +25,7 @@
   "dependencies": {
     "@jitsi/robotjs": "link:./lib/robotjs",
     "@socket.io/admin-ui": "^0.5.1",
+    "cobrowsing-mediasoup-client": "link:./lib/cobrowsing-mediasoup-client",
     "mediasoup-client": "3",
     "pino": "^8.8.0",
     "pino-pretty": "^9.1.1",

@@ -7,7 +7,7 @@ import Fade from '@mui/material/Fade'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 // const capabilities = singaling
-import { create } from './media'
+import { create, consume } from './media'
 
 export const App: React.FC = ()  => {
   const [showFab, setShowFab] = React.useState(false)
@@ -29,7 +29,7 @@ export const App: React.FC = ()  => {
           <Fab color="primary" aria-label='add' onClick={() => create()}>
             <AddIcon />
           </Fab>
-          <Fab color="primary" aria-label='edit'>
+          <Fab color="primary" aria-label='edit' onClick={() => consume()}>
             <EditIcon />
           </Fab>
         </Stack>

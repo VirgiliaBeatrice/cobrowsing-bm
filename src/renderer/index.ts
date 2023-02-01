@@ -1,17 +1,18 @@
-import { ipcRenderer, contextBridge, IpcMainEvent } from "electron";
+import { IpcRendererEvent } from "electron";
 
-
-export type API  = {
+declare type API  = {
   host: string,
-  handleSetSource: (event: IpcMainEvent, ...args: any[]) => void
+  on: (channel: string, cb: (ev: IpcRendererEvent, ...args: any[]) => void) => void;
+}
+declare global {
+  interface Window {
+    api: API
+  }
 }
 
-contextBridge.exposeInMainWorld('api', {
-  host: "http://jp.virbea.com:8080",
-  handleSetSource: (cb) => ipcRenderer.on('SET_SOURCE', cb)
-})
+const api = window.api
 
-ipcRenderer.on('SET_SOURCE', async (ev, sourceId: string) => {
+api.on('SET_SOURCE', async (ev, sourceId: string) => {
     try {
         // https://github.com/electron/electron/issues/27139#issuecomment-1198014810
         const stream: MediaStream = await (navigator.mediaDevices as any).getUserMedia({
@@ -44,8 +45,8 @@ function handleStream (stream: MediaStream) {
     // const video = document.querySelector('video')
     // video.srcObject = stream
     // video.onloadedmetadata = (e) => video.play()
-  }
+}
   
-  function handleError (e: Error) {
-    console.log(e)
-  }
+function handleError (e: Error) {
+  console.log(e)
+}

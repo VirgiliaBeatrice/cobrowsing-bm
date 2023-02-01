@@ -8,8 +8,6 @@ import { config } from './config'
 
 window.localStorage.setItem('debug', 'mediasoup-client:WARN* mediasoup-client:ERROR* mediasoup-client:DEBUG*');
 
-const api: any = (window as any).api
-
 interface Store {
   device: mediasoup.types.Device | undefined,
   consumer: Consumer | undefined,
@@ -37,21 +35,37 @@ else {
 
 let socket: Socket
 let device: mediasoup.types.Device
+let isStart: boolean = false
 
 export async function create() {
-  socket = io("http://131.112.183.91") 
-  device = new mediasoup.Device()
+  return new Promise<boolean>(
+    (resolve, reject)=> {
+      socket = io("http://131.112.183.91") 
+      device = new mediasoup.Device()
+    
+      socket.on('connect', () => {
+        console.log('connect to server.')
+        isStart = true
 
-  socket.on('connect', () => {
-    console.log('connect to server.')
-  })
-  
-  socket.on("connect_error", (err) => {
-      console.log(`connect_error due to ${err.message}`);
-  });
+        resolve(true)
+      })
+      
+      socket.on("connect_error", (err) => {
+        console.log(`connect_error due to ${err.message}`);
 
-  await startProduce()
+        reject("connect error")
+      });
+    }
+  )
+}
 
+export async function produce() {
+  if (isStart) {
+    await startProduce()
+  }
+  else {
+    console.error("Server is not started.")
+  }
 }
 
 export async function consume() {
