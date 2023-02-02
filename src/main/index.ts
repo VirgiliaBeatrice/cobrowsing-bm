@@ -3,8 +3,8 @@ import * as robot from '@jitsi/robotjs'
 import {init} from './message'
 import path from 'path'
 
-console.log(process.versions);
-console.log(robot.getMousePos())
+// console.log(process.versions);
+// console.log(robot.getMousePos())
 
 const createWindow = async() => {
     const win = new BrowserWindow({
@@ -13,7 +13,7 @@ const createWindow = async() => {
         fullscreen: true,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            
+            nodeIntegration: false,
             contextIsolation: true
         },
     })
@@ -28,15 +28,22 @@ const createWindow = async() => {
 
     win.webContents.openDevTools()
 
-    var sources = await desktopCapturer.getSources({types: ['screen']})
-
-    console.info(sources)
-
-    for (var source of sources) {
-        if (source.display_id === "0") {
-            win.webContents.send('SET_SOURCES', source.id)
+    win.webContents.on('did-finish-load', async () => {
+        var sources = await desktopCapturer.getSources({types: ['screen']})
+    
+        console.info(sources)
+    
+        if (sources.length !== 0) {
+            console.info("Send!")
+            win.webContents.send('SET_SOURCE', sources[0].id)
         }
-    }
+    })
+    // for (var source of sources) {
+    //     if (source.display_id === 'screen:0:0') {
+    //         console.info("Send!")
+    //         win.webContents.send('SET_SOURCES', source.id)
+    //     }
+    // }
 }
 
 app.whenReady().then(async () => {

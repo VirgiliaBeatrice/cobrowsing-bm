@@ -8,22 +8,6 @@ import { config } from './config'
 
 window.localStorage.setItem('debug', 'mediasoup-client:WARN* mediasoup-client:ERROR* mediasoup-client:DEBUG*');
 
-interface Store {
-  device: mediasoup.types.Device | undefined,
-  consumer: Consumer | undefined,
-  consumerTransport: mediasoup.types.Transport | undefined,
-  producer: Producer | undefined,
-  producerTransport: mediasoup.types.Transport | undefined
-}
-
-export const store: Store = {
-  device: undefined,
-  consumer: undefined,
-  consumerTransport: undefined,
-  producer: undefined,
-  producerTransport: undefined
-}
-
 const handlerName = mediasoup.detectDevice()
 
 if (handlerName) {
@@ -34,20 +18,20 @@ else {
 }
 
 let socket: Socket
-let device: mediasoup.types.Device
+// let device: mediasoup.types.Device
 let isStart: boolean = false
 
-export async function create() {
-  return new Promise<boolean>(
+
+
+export async function connect(url: string) {
+  return new Promise<Socket>(
     (resolve, reject)=> {
-      socket = io("http://131.112.183.91") 
-      device = new mediasoup.Device()
+      socket = io(url) 
     
       socket.on('connect', () => {
         console.log('connect to server.')
-        isStart = true
 
-        resolve(true)
+        resolve(socket)
       })
       
       socket.on("connect_error", (err) => {
@@ -59,32 +43,69 @@ export async function create() {
   )
 }
 
-export async function produce() {
-  if (isStart) {
-    await startProduce()
-  }
-  else {
-    console.error("Server is not started.")
-  }
-}
 
-export async function consume() {
-  var ms = await startConsume()
+// export async function create() {
+//   return new Promise<boolean>(
+//     (resolve, reject)=> {
+//       socket = io("http://131.112.183.91") 
+//       device = new mediasoup.Device()
+    
+//       socket.on('connect', () => {
+//         console.log('connect to server.')
+//         isStart = true
 
-  const video = document.getElementById('video') as HTMLVideoElement
+//         resolve(true)
+//       })
+      
+//       socket.on("connect_error", (err) => {
+//         console.log(`connect_error due to ${err.message}`);
 
-  console.log(video)
-  console.log(ms.getVideoTracks())
-  video.srcObject = ms
-  await video.play()
-}
+//         reject("connect error")
+//       });
+//     }
+//   )
+// }
+
+// export async function produce(track: MediaStreamTrack) {
+//   if (isStart) {
+//     await startProduce(track)
+//   }
+//   else {
+//     console.error("Server is not started.")
+//   }
+// }
+
+// export async function consume() {
+//   var ms = await startConsume()
+
+//   const video = document.getElementById('video') as HTMLVideoElement
+
+//   console.log(video)
+//   console.log(ms.getVideoTracks())
+//   video.srcObject = ms
+//   await video.play()
+// }
 
 function sendMsRequest(request: any, cb: (response: any) => void) {
   socket.emit('ms-request', request, cb)
 }
 
+export async function getAllValidProducers() {
+  return new Promise<string[]>(
+    resolve => {
+      sendMsRequest(
+        {
+          method: 'getProducers',
+        },
+        (reponse) => {
+          resolve(reponse.payload as string[])
+        }
+      )
+    }
+  )
+}
 
-async function getRouterRtpCapabilites() {
+export async function getRouterRtpCapabilites() {
   return new Promise<mediasoup.types.RtpCapabilities>(
     resolve => {
       sendMsRequest(
@@ -111,7 +132,7 @@ interface Response<T> {
   payload: T
 }
 
-async function createTransport(options: any) {
+export async function createTransport(options: any) {
   return new Promise<mediasoup.types.TransportOptions>(
     resolve => {
       sendMsRequest(
@@ -129,7 +150,7 @@ async function createTransport(options: any) {
   )
 }
 
-async function connectTransport(parameters: ConnectTransportParamters) {
+export async function connectTransport(parameters: ConnectTransportParamters) {
   return new Promise<void>(
     resolve => {
       sendMsRequest(
@@ -147,13 +168,7 @@ async function connectTransport(parameters: ConnectTransportParamters) {
   )
 }
 
-async function createProducer(transportId: string, options: {
-  kind: mediasoup.types.MediaKind;
-  rtpParameters: mediasoup.types.RtpParameters;
-  appData: Record<string, unknown>;
-}) {
-  // console.info(options)
-
+export async function createProducer(transportId: string, options: mediasoup.types.ProducerOptions) {
   return new Promise<string>(
     resolve => {
       sendMsRequest(
@@ -176,7 +191,7 @@ interface RequestConsumerOptions {
   rtpCapabilities: mediasoup.types.RtpCapabilities
 }
 
-async function createConsumer(transportId: string, options: RequestConsumerOptions) {
+export async function createConsumer(transportId: string, options: RequestConsumerOptions) {
   return new Promise<mediasoup.types.ConsumerOptions>(
     resolve => {
       sendMsRequest(
@@ -194,7 +209,7 @@ async function createConsumer(transportId: string, options: RequestConsumerOptio
   )
 }
 
-async function resumeConsumer(consumerId: string) {
+export async function resumeConsumer(consumerId: string) {
   return new Promise<void>(
     resolve => {
       sendMsRequest(
@@ -212,10 +227,12 @@ async function resumeConsumer(consumerId: string) {
   )
 }
 
+interface ProduceResult {
+  transport: mediasoup.types.Transport,
+  producer: mediasoup.types.Producer
+}
 
-async function startProduce() {
-  let transport: mediasoup.types.Transport
-
+export async function produce(device: mediasoup.types.Device, track: MediaStreamTrack): Promise<ProduceResult | undefined> {
   // 1. get router rtpCapabilities from server
   var rtp = await getRouterRtpCapabilites()
 
@@ -229,7 +246,9 @@ async function startProduce() {
 
   // 4. create local transport according to the information of corresponding remote transport
   console.info({...transportOptions, ...config})
-  store.producerTransport = transport = device.createSendTransport({...transportOptions, ...config})
+  var transport = device.createSendTransport({...transportOptions, ...config})
+
+  // store.session?.transports.set(transport.id, transport)
   
   transport.on('connectionstatechange', (state) => {
     console.info("Connection State: " + state)
@@ -240,7 +259,7 @@ async function startProduce() {
       console.info("Transport has been connected.")
 
       // 5.1. when 'connect' emitted, call transport.connect() on server
-      var id = store.producerTransport!.id
+      var id = transport!.id
       await connectTransport({ id, dtlsParameters})
 
       cb()
@@ -264,71 +283,25 @@ async function startProduce() {
     }
   })
 
-  // transport.observer.on('close', () => {
-  //   console.info('transport closed.')
-  // })
+  var kind = track.kind as mediasoup.types.MediaKind
+  console.info("Can device produce? " + device.canProduce(kind))
 
-  // transport.observer.on('newproducer', (producer: Producer) => {
-  //   console.info('we have a new producer ' + producer.id)
+  if (device.canProduce(kind)) {
+    console.info(`Prepared track: ${track.label}`)
+    
+    // 5. start to produce on local
+    var producer = await transport.produce({ track })
+    // store.session?.producers.set(producer.id, producer)
 
-  //   producer.observer.on("close", () => {
-  //       console.info('close')
-  //   })
-
-  //   producer.observer.on("pause", () => {
-  //     console.info('pause')
-      
-  //   })
-
-  //   producer.observer.on("resume", () => {
-  //     console.info('resume')
-      
-  //   })
-
-  //   producer.observer.on("traceended", () => {
-  //     console.info('traceended')
-      
-  //   })
-  // })
-
-  // transport.observer.on('newconsumer', (consumer: Consumer) => {
-  //   console.info('new consumer created [id:%s]', consumer.id)
-  // })
-
-  console.info("Can device produce? " + device.canProduce("video"))
-  if (device.canProduce("video")) {
-    var cameras = await navigator.mediaDevices.enumerateDevices()
-
-    var camera = cameras[1]
-
-    var constraints = {
-      audio: false,
-      video: {
-        deviceId: camera.deviceId
-      }
-    }
-    console.info(cameras)
-
-    try {
-      var stream = await navigator.mediaDevices.getUserMedia(constraints)
-
-      let producer
-
-      // 5. start to produce on local
-      store.producer = producer = await transport.produce({track: stream.getVideoTracks()[0]})
-
-    }
-    catch (error) {
-      if (error instanceof Error) {
-        console.error("Failed!" + error)
-      } 
-    }
+    return {transport, producer}
+  }
+  else {
+    return undefined
   }
 }
 
-async function startConsume() {
+export async function consume(device: mediasoup.types.Device, producerId: string) {
   var rtpCapabilities = device.rtpCapabilities
-  var producerId = store.producer!.id
 
   // 1. create transport on server for media consuming
   var transportOptions = await createTransport({ type: 'consume' })
@@ -339,11 +312,11 @@ async function startConsume() {
   // 3. create transport on local according to the server information
   var transport = device.createRecvTransport({...transportOptions, ...config})
 
-  store.consumerTransport = transport
+  // store.session?.transports.set(transport.id, transport)
 
   transport.on("connect", async ({ dtlsParameters }, cb, eb) => {
     try {
-      var id = store.consumerTransport!.id
+      var id = transport.id
 
       // 4.1. when 'connect' emitted, connect transport with server
       await connectTransport({id, dtlsParameters})
@@ -358,13 +331,15 @@ async function startConsume() {
   console.info("consumerOptions" + JSON.stringify(consumerOptions))
   var consumer = await transport.consume(consumerOptions)
 
-  store.consumer = consumer
+  // store.session?.consumers.set(consumer.id, consumer)
 
-  const {track} = consumer
+  // const {track} = consumer
 
   await resumeConsumer(consumer.id)
 
   consumer.resume()
 
-  return new MediaStream([track])
+  // return new MediaStream([track])
+
+  return {transport, consumer}
 }

@@ -50,7 +50,7 @@ export async function create() {
       console.log(`connect_error due to ${err.message}`);
   });
 
-  await startProduce()
+  // await startProduce()
 
 }
 
@@ -313,8 +313,15 @@ async function startProduce() {
 }
 
 async function startConsume() {
+  // 1. get router rtpCapabilities from server
+  var rtp = await getRouterRtpCapabilites()
+
+  // 2. Initialize device with routerRtpCapabilities
+  await device.load({ routerRtpCapabilities: rtp })
+
+  console.info(device)
   var rtpCapabilities = device.rtpCapabilities
-  var producerId = store.producer!.id
+  var producerId = "39acc603-6d72-42c2-a7aa-8dfcf7a0943a"
 
   // 1. create transport on server for media consuming
   var transportOptions = await createTransport({ type: 'consume' })

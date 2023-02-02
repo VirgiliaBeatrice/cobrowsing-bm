@@ -1,1 +1,2 @@
-export { store, create, consume } from './media'
+export { connect, produce, consume } from './media'
+export { Session } from './session'
