@@ -321,7 +321,7 @@ async function startConsume() {
 
   console.info(device)
   var rtpCapabilities = device.rtpCapabilities
-  var producerId = "39acc603-6d72-42c2-a7aa-8dfcf7a0943a"
+  var producerId = "082cad74-ce36-4f8d-bc11-3829c02ec0a2"
 
   // 1. create transport on server for media consuming
   var transportOptions = await createTransport({ type: 'consume' })

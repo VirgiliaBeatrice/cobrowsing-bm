@@ -277,6 +277,11 @@ has-flag@^3.0.0:
   resolved "https://registry.yarnpkg.com/has-flag/-/has-flag-3.0.0.tgz#b5d454dc2199ae225699f3467e5a07f3b955bafd"
   integrity sha512-sKJf1+ceQBr4SMkvQnBDNDtf4TXpVhVGateu0t918bl30FnbE2m4vNLX+VWe/dpjlb+HugGYzW7uQXH98HPEYw==
 
+headless@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/headless/-/headless-1.2.0.tgz#440ba3a26cd959692844cae42416ab395a552151"
+  integrity sha512-KY721osnVJ/hU8w2Gpsu1znT16mjWsIVl3qpJUvKj3U3xfPq1N6hHIDRGRyahYYPZbTBbVtOPuBVCW7Mi83bCg==
+
 help-me@^4.0.1:
   version "4.2.0"
   resolved "https://registry.yarnpkg.com/help-me/-/help-me-4.2.0.tgz#50712bfd799ff1854ae1d312c36eafcea85b0563"
