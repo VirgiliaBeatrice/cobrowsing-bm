@@ -14,8 +14,13 @@ const logger = pino({
     }
 })
 
+interface AppConfiguration {
+    chromePath: string,
+    xvfbPath: string,
+}
 
-type ClientCallback<T> = (ack: Ack<T>) => void
+
+type ClientCallback<T> = (ack: Response<T>) => void
 type RecvEvent<T, K> = (msg: Message<T>, cb: ClientCallback<K>) => void
 
 interface ClientToServerEvents {
@@ -184,18 +189,6 @@ interface Session {
     id: string
 }
 
-// c->s
-// connect   ->
-// connected <-
-// create    ->
-// created   <-
-// join      ->
-// joined    <-
-
-// interface Message {
-//     type: string,
-// }
-
 interface Message<T> {
     type: string,
     payload: T
@@ -214,53 +207,32 @@ const publishTo = (id: string, msg: Message<any>) => {
     io.to(id).emit(msg.type, msg)
 }
 
-interface Ack<T> {
+interface Response<T> {
     type: string,
-    status: string,
-    payload?: T | any
+    payload: T | undefined
 }
 
 io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>) => {
     logger.info("A remote connection has been established.")
-    
-    // emit connected
-    var msg = {
-        type: 'connected',
-        // payload: manager.sessions
-    }
 
-    socket.emit("connected", msg)
-
-
-    socket.on('withAck', (msg, cb) => {
-
-    })
+    // create peer when first connection according to socket id
+    var id = socket.id
 
     // onCreateSession
     socket.on("create:session", (msg, cb) => {
-        logger.info(`recv - ${msg.type}`)
+        logger.info(`Request: ${msg.type}`)
     
         var session = manager.create(uuid())
-        var ack: Ack<any> = {
+        var response: Response<string> = {
             type: msg.type,
-            status: 'ok',
             payload: session.id
         }
 
-        cb(ack)
+        cb(response)
     })
 
-    socket.on("create:peer", (msg, cb) => {
-        var ack: Ack<string> = {
-            type: msg.type,
-            status: "ok",
-            payload: uuid()
-        }
-
-        cb(ack)
-    })
-
-    socket.on("update:peer.session_id", (msg: Message<Peer>, cb: (ack: Ack<any>) => void) => {
+    // join session
+    socket.on("join:", (msg: Message<Peer>, cb: (ack: Response<any>) => void) => {
         var peer = msg.payload
         var session = manager.find(peer.sessionId as string)
 
@@ -268,7 +240,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
             socket.join(session.id)
             manager.join(session.id, peer)
 
-            var ack: Ack<any> = {
+            var ack: Response<any> = {
                 type: msg.type,
                 status: 'ok'
             }
@@ -280,7 +252,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
         }
     })
 
-    socket.on("update:peer.cursor", (msg: Message<Peer>, cb: (ack: Ack<any>) => void) => {
+    socket.on("update:peer.cursor", (msg: Message<Peer>, cb: (ack: Response<any>) => void) => {
         var peer = msg.payload
         var session = manager.find(peer.sessionId as string)
 
@@ -289,7 +261,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
 
             // target?.cursor = peer.cursor
 
-            var ack: Ack<any> = {
+            var ack: Response<any> = {
                 type: msg.type,
                 status: 'ok'
             }
@@ -305,7 +277,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
 
         manager.addParticipant(socket)
 
-        var ack: Ack<any> = {
+        var ack: Response<any> = {
             type: msg.type,
             status: 'ok',
             payload: socket.id
@@ -374,7 +346,7 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
     //     publishTo(sessionId, msg)
     // })
 
-    socket.on('read:sessions', (msg: Message<any>, cb: (ack: Ack<any>) => void) => {
+    socket.on('read:sessions', (msg: Message<any>, cb: (ack: Response<any>) => void) => {
         var ack = {
             type: msg.type,
             status: 'ok',
