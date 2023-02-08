@@ -37,15 +37,6 @@ interface ServerToClientEvents {
     "default": (msg: Message<any>) => void
 }
 
-interface Peer {
-    id: string,
-    name: string,
-    color: string,
-    sessionId: string,
-    mouseEvent?: MouseEvent,
-    keyEvent?: KeyEvent,
-}
-
 interface MouseEvent {
     event: 'move' | 'up' | 'down',
     button: 'left' | 'middle' | 'right'
@@ -58,16 +49,20 @@ interface KeyEvent {
     keyCode: string
 }
 
-interface SessionInfo {
+
+interface Peer {
     id: string,
     name: string,
+    color: string,
 }
 
-interface Session extends SessionInfo {
+interface Session {
+    id: string,
+    name: string,
+
     electron: ChildProcessWithoutNullStreams | undefined,
-    browser: ChildProcessWithoutNullStreams | undefined,
-    monitor: ChildProcessWithoutNullStreams | undefined,
-    peers: Map<string, Peer>
+
+    participants: Map<string, Peer>
 }
 
 const CHROME_PATH = os.platform() == 'win32'? 
@@ -81,7 +76,7 @@ class SessionManager {
 
     constructor() { }
 
-    create(id: string) {
+    create() {
         let electron, browser, monitor
 
         if (os.platform() == 'linux') {
@@ -105,13 +100,12 @@ class SessionManager {
                 })
         }
 
+        var id = uuid()
         var session: Session = {
             id: id,
             name: `Session[${id}]`,
             electron: electron,
-            browser: browser,
-            monitor: monitor,
-            peers: new Map(),
+            participants: new Map(),
         }
 
         this._sessions.set(session.id, session)
@@ -126,16 +120,21 @@ class SessionManager {
         this._sessions.delete(sessionId)
     }
 
-    join(sessionId: string, peer: Peer) {
+    join(sessionId: string, peerId: string) {
         var session = this._sessions.get(sessionId)
+        var peer = {
+            id: peerId,
+            name: '',
+            color: '#FFFFFF',
+        }
 
-        session?.peers.set(peer.id, peer)
+        session!.participants.set(peerId, peer)
     }
 
-    leave(sessionId: string, peer: Peer) {
+    leave(sessionId: string, peerId: string) {
         var session = this._sessions.get(sessionId)
 
-        session?.peers.delete(peer.id)
+        session!.participants.delete(peerId)
     }
 
     find(sessionId: string): Session | undefined {
@@ -145,22 +144,11 @@ class SessionManager {
     getPeers(sessionId: string): Array<Peer> {
         var session = this._sessions.get(sessionId) 
 
-        return session? [...session.peers.values()] : []
+        return [...session!.participants.values()]
     }
 
-    addParticipant(socket: Socket) {
-        this._participants.set(socket.id, socket)
-    }
-
-    removeParticipant(id: string) {
-        this._participants.delete(id)
-    }
-
-    get sessions(): Array<SessionInfo> {
-        return [...this._sessions.values()].map(s => ({
-            id: s.id,
-            name: s.name
-        }))
+    get sessions(): Array<Session> {
+        return [...this.sessions]
     }
 }
 
@@ -185,10 +173,6 @@ instrument(io, {
 
 httpServer.listen(30001)
 
-interface Session {
-    id: string
-}
-
 interface Message<T> {
     type: string,
     payload: T
@@ -208,7 +192,7 @@ const publishTo = (id: string, msg: Message<any>) => {
 }
 
 interface Response<T> {
-    type: string,
+    status: string | 'ok' | 'failed',
     payload: T | undefined
 }
 
@@ -219,147 +203,94 @@ io.on("connection", (socket: Socket<ClientToServerEvents, ServerToClientEvents>)
     var id = socket.id
 
     // onCreateSession
-    socket.on("create:session", (msg, cb) => {
+    socket.on("create", (msg, cb) => {
         logger.info(`Request: ${msg.type}`)
     
-        var session = manager.create(uuid())
-        var response: Response<string> = {
-            type: msg.type,
-            payload: session.id
+        let response: Response<any> = {
+            status: 'failed',
+            payload: undefined
+        };
+
+        if (msg.type === "session") {
+            var session = manager.create()
+
+            response = {
+                status: 'ok',
+                payload: session.id
+            }
         }
 
         cb(response)
     })
 
-    // join session
-    socket.on("join:", (msg: Message<Peer>, cb: (ack: Response<any>) => void) => {
-        var peer = msg.payload
-        var session = manager.find(peer.sessionId as string)
+    socket.on('read', (msg, cb) => {
+        logger.info(`[R] - ${msg.type}`)
 
-        if (session) {
-            socket.join(session.id)
-            manager.join(session.id, peer)
+        let response: Response<any> = {
+            status: 'failed',
+            payload: undefined
+        }
 
-            var ack: Response<any> = {
-                type: msg.type,
-                status: 'ok'
-            }
+        if (msg.type === 'sessions') {
+            var sessions = manager.sessions
 
-            cb(ack)
+            response.status = 'ok'
+            response.payload = sessions
 
-            logger.info(`Peer[${peer.id}] joined. Session[${session.id}]`)
-            // publishTo(session.id, )
+            cb(response)
+        }
+        else if (msg.type === 'session') {
+            var sessionId = msg.payload as string
+
+            response.status = 'ok'
+            response.payload = manager.find(sessionId)
+
+            cb(response)
         }
     })
 
-    socket.on("update:peer.cursor", (msg: Message<Peer>, cb: (ack: Response<any>) => void) => {
-        var peer = msg.payload
-        var session = manager.find(peer.sessionId as string)
-
-        if (session) {
-            var target = session.peers.get(peer.id)
-
-            // target?.cursor = peer.cursor
-
-            var ack: Response<any> = {
-                type: msg.type,
-                status: 'ok'
-            }
-
-            cb(ack)
-
-            // publishTo(session.id, )
-        }
-    })
-
-    socket.on('create:peer', (msg, cb) => {
-        var peer = msg.payload as Peer
-
-        manager.addParticipant(socket)
-
-        var ack: Response<any> = {
-            type: msg.type,
+    socket.on('update', (msg, cb) => {
+        var response = {
             status: 'ok',
-            payload: socket.id
+            payload: undefined
         }
 
-        cb(ack)
+        if (msg.type === 'color') {
+            var { sessionId, color } = msg.payload
+            var session = manager.find(sessionId)
 
-        logger.info(`Add a participant[${socket.id}]`)
+            cb(response)
+        }
+        else if (msg.type === 'session:join') {
+            var sessionId = msg.payload
+            var session = manager.find(sessionId)
+            var localId = socket.id
+
+            if (session) {
+                manager.join(session.id, localId)
+    
+                var response = {
+                    status: 'ok',
+                    payload: undefined
+                }
+    
+                cb(response)
+    
+                logger.info(`Peer[${socket.id}] joined. Session[${session.id}]`)
+                // publishTo(session.id, )
+            }
+        }
     })
+
+    socket.on('delete', (msg, cb) => {
+
+    })
+
 
     socket.on('disconnect', (reason) => {
-        manager.removeParticipant(socket.id)
+        var sessions = manager.sessions.filter(s => s.participants.has(socket.id))
 
+        sessions.forEach(s => s.participants.delete(socket.id))
         logger.info(`Delete participant[${socket.id}], since the connection has been lost. REASON: ${reason}`)
     })
-
-    // onJoin
-    // socket.on('join', (sessionId: string, peer: Peer) => {
-    //     var session = manager.find(sessionId)
-
-    //     if (session) {
-    //         var msg: Message<any> = {
-    //             type: 'joined',
-    //             payload: session.id
-    //         }
-
-    //         socket.join(session.id)
-    //         manager.join(session.id, peer)
-
-    //         socket.emit('joined', msg)
-    
-    //         msg = {
-    //             type: 'updated',
-    //             payload: {
-    //                 id: session.id,
-    //                 peers: session.peers
-    //             }
-    //         }
-
-    //         broadcastTo(sessionId, msg)
-    //     }
-    // })
-
-    // onLeave
-    // socket.on("leave", (sessionId: string, peer: Peer) => {
-    //     var session = manager.find(sessionId)
-
-    //     var msg: Message<any> = {
-    //         type: 'left',
-    //         payload: sessionId
-    //     }
-
-    //     socket.leave(sessionId)
-    //     manager.leave(sessionId, peer)
-
-    //     socket.emit('left', msg)
-
-    //     msg = {
-    //         type: 'updated',
-    //         payload: {
-    //             id: sessionId,
-    //             peers: session?.peers
-    //         }
-    //     }
-
-    //     publishTo(sessionId, msg)
-    // })
-
-    socket.on('read:sessions', (msg: Message<any>, cb: (ack: Response<any>) => void) => {
-        var ack = {
-            type: msg.type,
-            status: 'ok',
-            payload: manager.sessions
-        }
-
-        cb(ack)
-
-        logger.info(`Request current session information from ${socket.id}`)
-    })
-})
-
-io.on('disconnect', () => {
-    console.log('disconnect a socket')
-
 })
